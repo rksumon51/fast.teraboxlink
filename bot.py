@@ -12,6 +12,17 @@ PLAYER_URL = "https://final-terabox-bot.vercel.app"
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("📥 Send Terabox link")
 
+# ================= AUTO FIX =================
+def fix_link(url):
+    url = url.strip()
+
+    # 🔥 fix domains
+    url = url.replace("terasharefile.com", "www.terabox.com")
+    url = url.replace("1024terabox.com", "www.terabox.com")
+    url = url.replace("terabox.app", "www.terabox.com")
+
+    return url
+
 # ================= API 1 =================
 def api1(url):
     try:
@@ -22,11 +33,11 @@ def api1(url):
         )
         data = res.json()
         if data.get("success"):
-            return data.get("data", {})
+            return data.get("data")
     except:
         return None
 
-# ================= API 2 (Backup) =================
+# ================= API 2 =================
 def api2(url):
     try:
         res = requests.get(
@@ -44,18 +55,43 @@ def api2(url):
     except:
         return None
 
+# ================= API 3 (EXTRA BACKUP) =================
+def api3(url):
+    try:
+        res = requests.get(
+            f"https://api.vevioz.com/api/button/mp4?url={url}",
+            timeout=15
+        )
+        if "href=" in res.text:
+            return {
+                "normal_dlink": url,
+                "file_name": "video.mp4",
+                "size": "Unknown",
+                "thumb": None,
+            }
+    except:
+        return None
+
 # ================= MAIN =================
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    url = update.message.text.strip()
+    raw_url = update.message.text
+    url = fix_link(raw_url)
+
     msg = await update.message.reply_text("⚡ Fetching video...")
 
     try:
-        # 🔥 Try API 1
+        file = None
+
+        # 🔥 API 1
         file = api1(url)
 
-        # 🔁 fallback
+        # 🔁 API 2
         if not file:
             file = api2(url)
+
+        # 🔁 API 3
+        if not file:
+            file = api3(url)
 
         if not file:
             return await msg.edit_text("❌ All APIs failed")
@@ -68,7 +104,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not download_url:
             return await msg.edit_text("❌ No download link")
 
-        # 🔥 DIRECT VIDEO SEND
+        # ================= SUPER FAST SEND =================
         try:
             await update.message.reply_video(
                 video=download_url,
@@ -78,7 +114,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             pass
 
-        # 🔥 fallback buttons
+        # ================= FALLBACK =================
         encoded = urllib.parse.quote(download_url, safe="")
         player_link = f"{PLAYER_URL}?url={encoded}"
 
@@ -111,5 +147,5 @@ app = ApplicationBuilder().token(BOT_TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
 
-print("🚀 Bot Running...")
+print("🚀 PRO Bot Running...")
 app.run_polling()
