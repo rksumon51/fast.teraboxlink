@@ -8,18 +8,32 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 PLAYER_URL = "https://final-terabox-bot.vercel.app"
 
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Linux; Android 10)",
+    "Accept": "*/*"
+}
+
 # ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("📥 Send Terabox link")
 
-# ================= AUTO FIX =================
+# ================= FIX LINK =================
 def fix_link(url):
     url = url.strip()
 
-    # 🔥 fix domains
+    # domain fix
     url = url.replace("terasharefile.com", "www.terabox.com")
     url = url.replace("1024terabox.com", "www.terabox.com")
     url = url.replace("terabox.app", "www.terabox.com")
+
+    # 🔥 follow redirect
+    try:
+        r = requests.get(url, headers=HEADERS, allow_redirects=True, timeout=10)
+        url = r.url
+    except:
+        pass
+
+    print("FINAL URL =", url)  # debug
 
     return url
 
@@ -29,6 +43,7 @@ def api1(url):
         res = requests.post(
             "https://iteraplay.com/api/stream",
             json={"url": url},
+            headers=HEADERS,
             timeout=15
         )
         data = res.json()
@@ -42,6 +57,7 @@ def api2(url):
     try:
         res = requests.get(
             f"https://terabox-downloader-api.vercel.app/api?url={url}",
+            headers=HEADERS,
             timeout=15
         )
         data = res.json()
@@ -55,14 +71,11 @@ def api2(url):
     except:
         return None
 
-# ================= API 3 (EXTRA BACKUP) =================
+# ================= API 3 =================
 def api3(url):
     try:
-        res = requests.get(
-            f"https://api.vevioz.com/api/button/mp4?url={url}",
-            timeout=15
-        )
-        if "href=" in res.text:
+        res = requests.get(url, headers=HEADERS, timeout=10)
+        if "mp4" in res.text:
             return {
                 "normal_dlink": url,
                 "file_name": "video.mp4",
@@ -82,16 +95,11 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         file = None
 
-        # 🔥 API 1
-        file = api1(url)
-
-        # 🔁 API 2
-        if not file:
-            file = api2(url)
-
-        # 🔁 API 3
-        if not file:
-            file = api3(url)
+        # 🔥 Try APIs
+        for api in [api1, api2, api3]:
+            file = api(url)
+            if file:
+                break
 
         if not file:
             return await msg.edit_text("❌ All APIs failed")
@@ -104,7 +112,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not download_url:
             return await msg.edit_text("❌ No download link")
 
-        # ================= SUPER FAST SEND =================
+        # ================= DIRECT SEND =================
         try:
             await update.message.reply_video(
                 video=download_url,
@@ -123,11 +131,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("🎬 Watch Online", url=player_link)]
         ]
 
-        caption = f"""✅ Completed
-
-🎬 {file_name}
-📦 {size}
-"""
+        caption = f"✅ Completed\n\n🎬 {file_name}\n📦 {size}"
 
         if thumb:
             await update.message.reply_photo(
@@ -147,5 +151,5 @@ app = ApplicationBuilder().token(BOT_TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
 
-print("🚀 PRO Bot Running...")
+print("🚀 ULTRA PRO Bot Running...")
 app.run_polling()
